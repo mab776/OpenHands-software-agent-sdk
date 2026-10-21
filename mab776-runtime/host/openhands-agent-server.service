@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenHands agent-server (host-native backend for Agent Canvas :3003)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/home/mab776/openhands-host/env
+ExecStart=/home/mab776/openhands-host/start.sh
+WorkingDirectory=/home/mab776
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

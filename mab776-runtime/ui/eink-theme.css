@@ -1,0 +1,288 @@
+/* OpenHands Agent Canvas — E-INK layer (2026-09-24), on top of light-theme.css.
+   Active when <html class="oh-light oh-eink"> (set by theme-toggle.js: Settings → Application →
+   "Display", or auto when the browser reports `update: slow`).
+
+   Tuned from a PHOTO of Marc's colour e-paper tablet (Kaleido-type panel: a 16-level greyscale layer
+   under a lower-resolution colour filter):
+   - any grey with a hue (the app's "cool grey" is bluish) is drawn through the colour filter and comes
+     out as a teal DITHER TEXTURE → every grey here is strictly neutral (R=G=B);
+   - neutral greys are snapped to the panel's 16 native levels (multiples of 0x11) so the driver does
+     not dither between two levels;
+   - contrast is low and ink is thin → text is near-black, "muted" text is #444 not mid-grey, and all
+     text gets a hair of stroke;
+   - surfaces are white and separated by BORDERS, not by fills, shadows or transparency;
+   - colour is kept only where it carries meaning (red error, green done, blue link), fully saturated;
+   - no transitions/animations (they smear and trigger extra refreshes). */
+html.oh-light.oh-eink [data-agent-server-ui] {
+  --cool-grey-975: #ffffff;
+  --cool-grey-950: #ffffff;
+  --cool-grey-925: #ffffff;
+  --cool-grey-900: #eeeeee;
+  --cool-grey-800: #dddddd;
+  --cool-grey-700: #bbbbbb;
+  --cool-grey-600: #777777;
+  --cool-grey-500: #555555;
+  --cool-grey-400: #444444;
+  --cool-grey-300: #333333;
+  --cool-grey-200: #222222;
+  --cool-grey-100: #111111;
+  --cool-grey-50:  #000000;
+  --oh-border: #888888;
+  --oh-border-subtle: #aaaaaa;
+  --oh-border-input: #666666;
+  --oh-separator: #999999;
+  --oh-bg-neutral-muted: #eeeeee;
+  --oh-surface-raised: #ffffff;
+  /* fill tokens the audit's guard log flagged (2026-09-25): #ddd / #bbb / #777 fills → paper-safe */
+  --oh-color-tertiary: #ffffff;
+  --oh-default: #ffffff;
+  --oh-segment: #ffffff;
+  --oh-overlay: #ffffff;
+  --oh-interactive-active: #eeeeee;
+  --oh-interactive-hover: #eeeeee;
+  --oh-interactive-hover-low: #eeeeee;
+  --oh-interactive-selected: #eeeeee;
+  --oh-color-primary: #000000;
+  --oh-color-logo: #000000;
+  --oh-accent: #000000;
+  --oh-accent-foreground: #ffffff;
+  --oh-warning: #aa5500;
+  --oh-success: #008800;
+  --oh-status-success: #008800;
+  --oh-color-success: #008800;
+  --oh-status-error: #cc0000;
+  --oh-color-danger: #cc0000;
+  --oh-danger: #cc0000;
+  --oh-focus: #000000;
+  --oh-link: #0033aa;
+  --tw-prose-links: #0033aa !important;
+  -webkit-font-smoothing: auto;
+}
+/* thicker ink everywhere: e-paper renders thin strokes grey */
+html.oh-light.oh-eink [data-agent-server-ui] * { -webkit-text-stroke: 0.25px currentColor; }
+html.oh-light.oh-eink [data-agent-server-ui] .text-xs,
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-[11px]"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-[10px]"] { -webkit-text-stroke: 0.35px currentColor; }
+/* secondary text: the app's "muted"/"tertiary" greys → dark enough to read on e-ink (≥ 9:1) */
+html.oh-light.oh-eink [data-agent-server-ui] .text-muted,
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-[var(--oh-muted)]"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-tertiary"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-[var(--oh-text-dim)]"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="text-[var(--oh-text-subtle)]"] { color: #333333 !important; }
+/* no shadows, blur, gradients or translucent washes: all of them dither */
+html.oh-light.oh-eink [data-agent-server-ui] * {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+  animation-duration: 0s !important;
+  scroll-behavior: auto !important;
+}
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-gradient"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="from-"] { background-image: none !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-white/"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-black/"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[#ffffff"] { background-color: #eeeeee !important; }
+/* spinners still need to spin a little so you can tell it is working — slow, stepped */
+html.oh-light.oh-eink [data-agent-server-ui] .animate-spin { animation-duration: 2s !important; animation-timing-function: steps(4) !important; }
+/* surfaces: white + a real border instead of a grey fill */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="command-menu-trigger"] { background: #ffffff !important; border: 1px solid #888888 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="sidebar-onboarding-checklist"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="agent-canvas-version-tile"] { background: #ffffff !important; border: 1px solid #888888 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] textarea,
+html.oh-light.oh-eink [data-agent-server-ui] input,
+html.oh-light.oh-eink [data-agent-server-ui] select { background: #ffffff !important; color: #000000 !important; }
+/* the composer card: white with a solid outline (it was the teal-dithered block in the photo).
+   Card = the bg-[var(--oh-surface)] div whose .relative.w-full child holds [data-testid="chat-input"]. */
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-surface)]"]:has(> .relative.w-full [data-testid="chat-input"]) {
+  background: #ffffff !important; border: 1.5px solid #444444 !important;
+}
+/* chips / pills / pin buttons: outlined, never tinted */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="open-workspace-button"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="open-plugin-picker"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="chat-plus-button"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="conversation-pin-toggle"] { background: #ffffff !important; border: 1px solid #666666 !important; }
+/* code: light grey block, black text, bordered */
+html.oh-light.oh-eink [data-agent-server-ui] pre,
+html.oh-light.oh-eink [data-agent-server-ui] code { background: #eeeeee !important; color: #000000 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] pre { border: 1px solid #aaaaaa !important; }
+/* selected conversation / hover rows: a left bar instead of a fill */
+/* (scoped to the Settings nav: aria-current also sits on the logo link, a checklist item and an icon slot) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="sidebar-settings-"][aria-current="page"] { background: #eeeeee !important; box-shadow: inset 3px 0 0 #000000 !important; }
+/* focus must be visible without colour */
+html.oh-light.oh-eink [data-agent-server-ui] :focus-visible { outline: 2px solid #000000 !important; outline-offset: 2px; }
+/* terminal stays dark in plain light mode; on e-ink make it paper too (a big black block ghosts badly) */
+html.oh-light.oh-eink [data-agent-server-ui] .xterm,
+html.oh-light.oh-eink [data-agent-server-ui] .xterm-viewport,
+html.oh-light.oh-eink [data-agent-server-ui] .xterm-screen { background: #ffffff !important; color-scheme: light; }
+/* switches: outlined track so OFF is visible too; ON = black track, white knob (light-theme.css) */
+html.oh-light.oh-eink [data-agent-server-ui] input ~ span.rounded-full { border: 1.5px solid #444444 !important; }
+/* send button ready = solid black disc (must come after the bg-white/ wash rule above, which matches its hover class) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) { background-color: #000000 !important; border-color: #000000 !important; }
+
+/* ===================== COLOUR ACCENTS (2026-09-24, Marc: "really black and white, could have used
+   more colours") =====================
+   The colour filter on a Kaleido-type panel renders SATURATED colour cleanly on lines, text and small
+   solid shapes, and turns pale TINTS into a dither texture. So: colour on strokes, text, rings, dots and
+   small buttons only — every background stays white. Hues picked to stay readable as text on white and
+   distinct from each other through the filter. Meaning is consistent:
+     blue = interaction / you · green = done / alive · orange = the agent's actions · purple = its thinking / code
+     red = errors (above). */
+html.oh-light.oh-eink [data-agent-server-ui] {
+  --ink-blue: #0047bb;
+  --ink-green: #00843d;
+  --ink-orange: #c85000;
+  --ink-purple: #6a1b9a;
+  --ink-red: #c8102e;
+  --oh-link: var(--ink-blue);
+  --oh-status-success: var(--ink-green);
+  --oh-status-error: var(--ink-red);
+}
+/* interaction = blue */
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-surface)]"]:has(> .relative.w-full [data-testid="chat-input"]) { border: 2px solid var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) { background-color: var(--ink-blue) !important; border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled { border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled svg,
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled svg * { stroke: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="chat-plus-button"] { border-color: var(--ink-blue) !important; color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] input:checked ~ span.rounded-full { background-color: var(--ink-blue) !important; border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-ring-arc"] { stroke: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] a:not([class*="bg-"]):not([data-testid^="sidebar"]) { color: var(--ink-blue); }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="markdown-renderer"] a { color: var(--ink-blue) !important; text-decoration: underline; }
+/* where you are: blue bar on the current conversation and the current settings page */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-card"][data-active="true"] { border-left: 4px solid var(--ink-blue) !important; background: #ffffff !important; border-radius: 2px !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="sidebar-settings-"][aria-current="page"] { box-shadow: inset 4px 0 0 var(--ink-blue) !important; }
+/* your messages: white bubble with a blue outline (the grey fill read as a smudge) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="user-message"] { background: #ffffff !important; border: 2px solid var(--ink-blue) !important; }
+/* alive / done = green, as solid dots and ticks */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-active"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="backend-status-dot"],
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-status-success)]"] { background-color: var(--ink-green) !important; color: var(--ink-green) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-check"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-check"] * { color: var(--ink-green) !important; stroke: var(--ink-green) !important; }
+/* the agent's work: actions orange, thinking purple (so a long run scans at a glance) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="event-group-toggle"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="event-group-toggle"] *,
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="generic-event-message-title"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="generic-event-message-title"] * { color: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="collapsible-thinking-toggle"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="collapsible-thinking-toggle"] * { color: var(--ink-purple) !important; }
+/* agent answers: coloured headings, purple inline code, blue table headers — text stays black */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="markdown-renderer"] :is(h1, h2) { color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="markdown-renderer"] :is(h3, h4) { color: var(--ink-purple) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="markdown-renderer"] :not(pre) > code { color: var(--ink-purple) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] th,
+html.oh-light.oh-eink [data-agent-server-ui] thead * { color: var(--ink-blue) !important; background-color: #ffffff !important; }
+html.oh-light.oh-eink [data-agent-server-ui] thead { border-bottom: 2px solid var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] blockquote { border-left: 4px solid var(--ink-purple) !important; }
+/* suggestion chips on a new conversation: one colour each, as a 2px outline */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="suggestions"] > * { border-width: 2px !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="suggestions"] > :nth-child(4n+1) { border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="suggestions"] > :nth-child(4n+2) { border-color: var(--ink-green) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="suggestions"] > :nth-child(4n+3) { border-color: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="suggestions"] > :nth-child(4n+4) { border-color: var(--ink-purple) !important; }
+/* home chips + the "Getting started" checklist ticks */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="open-workspace-button"] { border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="open-plugin-picker"] { border-color: var(--ink-purple) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="sidebar-onboarding-checklist-item"] svg { color: var(--ink-green) !important; }
+/* the "New version" tile's upgrade arrow stays blue; its box gets a blue outline too */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="agent-canvas-version-tile"] { border-color: var(--ink-blue) !important; }
+
+/* ===================== CONTEXT-WINDOW popover + ring (2026-09-24, from a tablet photo) =====================
+   The popover used bg-tertiary (a grey fill → dither) + shadow; its bar track was 42 %-alpha black, which the
+   panel draws almost as dark as the fill (30 % looked like a full bar); "Compact context" was muted text. */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-popover"] {
+  background: #ffffff !important; border: 2px solid var(--ink-blue) !important; box-shadow: none !important; padding: 6px 4px !important;
+}
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-popover"] [class*="text-[var(--oh-muted)]"] { color: #111111 !important; }
+/* bar: white track with a dark outline, taller, solid fill coloured by level */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] {
+  height: 12px !important; background: #ffffff !important; border: 1.5px solid #333333 !important; overflow: hidden;
+}
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span { background: var(--ink-blue) !important; border-radius: 0 !important; }
+/* fill width is an inline "width: NN.NNNN%" → 60–79 % orange, ≥ 80 % red (single-digit values excluded) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 6"], [style^="width: 7"]):not([style^="width: 6."], [style^="width: 6%"], [style^="width: 7."], [style^="width: 7%"]) { background: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 8"], [style^="width: 9"], [style^="width: 100"]):not([style^="width: 8."], [style^="width: 8%"], [style^="width: 9."], [style^="width: 9%"]) { background: var(--ink-red) !important; }
+/* "Compact context" → a real outlined button */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-compact-button"] {
+  color: var(--ink-blue) !important; border: 1.5px solid var(--ink-blue) !important; border-radius: 6px !important;
+  padding: 3px 8px !important; font-weight: 600 !important;
+}
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-compact-button"] * { color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-plan-usage"] * { color: #111111 !important; }
+/* the ring next to Send: neutral track (was 42 %-alpha → dither), arc coloured by the same levels,
+   read from the button's aria-label "Context window usage: NN% used" */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-ring-track"] { stroke: #bbbbbb !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter"]:is([aria-label*="usage: 6"], [aria-label*="usage: 7"]):not([aria-label*="usage: 6%"], [aria-label*="usage: 7%"]) [data-testid="context-window-ring-arc"] { stroke: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter"]:is([aria-label*="usage: 8"], [aria-label*="usage: 9"], [aria-label*="usage: 100"]):not([aria-label*="usage: 8%"], [aria-label*="usage: 9%"]) [data-testid="context-window-ring-arc"] { stroke: var(--ink-red) !important; }
+
+/* ===================== promoted from the e-ink guard log (ui/eink-audit.sh, 2026-09-25) =====================
+   white text on what are now white fills: backend selector label, Automate page buttons */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="dropdown-trigger"] *,
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-git-sync"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-add-automation"] { color: #111111 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-git-sync"],
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-add-automation"] { border: 1.5px solid #444444 !important; background: #ffffff !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-create-automation"] { background: var(--ink-blue) !important; color: #ffffff !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-create-automation"] * { color: #ffffff !important; }
+/* skeleton loaders: a flat light bar, no shimmer */
+html.oh-light.oh-eink [data-agent-server-ui] .skeleton,
+html.oh-light.oh-eink [data-agent-server-ui] .skeleton-round { background: #eeeeee !important; }
+/* automation-card icon tiles (#ddd from a tertiary-like class) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="recommended-automation-rail-icon"] { background: transparent !important; border: 0 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="recommended-automation-rail-icon"] > span { background: #ffffff !important; border: 1.5px solid var(--ink-blue) !important; }
+/* selected option in any list box / menu (HeroUI sets aria-selected / data-selected): blue bar + blue tick,
+   since the app marks it with a white tick on a fill that is now paper-white */
+html.oh-light.oh-eink [data-agent-server-ui] [role="option"][aria-selected="true"],
+html.oh-light.oh-eink [data-agent-server-ui] [role="menuitemradio"][aria-checked="true"],
+html.oh-light.oh-eink [data-agent-server-ui] [role="option"][data-selected="true"] { box-shadow: inset 4px 0 0 var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [role="option"][aria-selected="true"] svg,
+html.oh-light.oh-eink [data-agent-server-ui] [role="menuitemradio"][aria-checked="true"] svg,
+html.oh-light.oh-eink [data-agent-server-ui] [role="option"][data-selected="true"] svg { color: var(--ink-blue) !important; stroke: var(--ink-blue) !important; }
+/* destructive menu items read red */
+html.oh-light.oh-eink [data-agent-server-ui] [role="menuitem"]:is([data-testid*="delete"], [data-testid*="archive"]),
+html.oh-light.oh-eink [data-agent-server-ui] [role="menuitem"]:is([data-testid*="delete"], [data-testid*="archive"]) * { color: var(--ink-red) !important; }
+/* white lucide icons on now-light tiles (guard log, 2026-09-25): automation-card icons, Automate view toggle */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid^="recommended-automation-rail-icon"] svg { color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-view-toggle"] svg { color: #111111 !important; }
+/* the current LLM / agent profile in the composer's profile menu: only it carries the tick icon */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid*="-profile-option-"]:has(svg) { box-shadow: inset 4px 0 0 var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid*="-profile-option-"] svg,
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid*="-profile-option-"] svg * { color: var(--ink-blue) !important; fill: var(--ink-blue) !important; }
+
+/* ===================== code blocks in expanded actions (tablet photo 2026-09-28, the "code dump") =====================
+   An action's details are markdown: the command as a ```bash fence → a Prism highlighter with a VS Code
+   DARK theme (container <div> with an inline dark background + <code class="language-…"> + .token spans
+   with inline pale colours), the output as a plain fence → <pre><code>. The inline-code chip rule above
+   (`code { background:#eee }`) hit those block <code> elements too; <code> is INLINE, so its background was
+   painted line by line = pale stripes on a black panel. */
+/* the highlighter container = a <div> (PreTag) with inline Menlo/monospace styles; it renders BOTH the
+   command (<code class="language-bash">) and the output (<code> with no language). Paper for both. */
+html.oh-light.oh-eink [data-agent-server-ui] :is(div, pre)[style*="Menlo"]:has(> code),
+html.oh-light.oh-eink [data-agent-server-ui] :is(div, pre):has(> code[class*="language-"]) {
+  background: #eeeeee !important; color: #111111 !important; text-shadow: none !important;
+  border: 1.5px solid #444444 !important; border-radius: 8px !important; padding: 10px 12px !important;
+}
+/* the command itself (has a language): white + the orange "agent action" bar */
+html.oh-light.oh-eink [data-agent-server-ui] :is(div, pre):has(> code[class*="language-"]) {
+  background: #ffffff !important; border-left: 5px solid var(--ink-orange) !important;
+}
+/* block code never gets the inline-chip look (inline <code> backgrounds paint per LINE = stripes) */
+html.oh-light.oh-eink [data-agent-server-ui] :is(div, pre)[style*="Menlo"] > code,
+html.oh-light.oh-eink [data-agent-server-ui] div:has(> code[class*="language-"]) > code,
+html.oh-light.oh-eink [data-agent-server-ui] pre > code {
+  background: transparent !important; border: 0 !important; padding: 0 !important; color: #111111 !important; text-shadow: none !important;
+}
+html.oh-light.oh-eink [data-agent-server-ui] :is(div, pre)[style*="Menlo"] > code * { background: transparent !important; color: inherit; }
+/* Prism tokens: dark-theme pastels → e-ink inks (black by default, colour only for the useful few) */
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] .token { color: #111111 !important; background: transparent !important; }
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] :is(.token.comment, .token.prolog, .token.doctype, .token.cdata) { color: #555555 !important; font-style: italic; }
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] :is(.token.string, .token.char, .token.attr-value, .token.regex) { color: var(--ink-green) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] :is(.token.keyword, .token.builtin, .token.important, .token.selector) { color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] :is(.token.function, .token.class-name) { color: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] code[class*="language-"] :is(.token.number, .token.boolean, .token.constant, .token.variable) { color: var(--ink-purple) !important; }
+/* the output block (plain fence): light paper, dark outline — same family, no orange bar */
+html.oh-light.oh-eink [data-agent-server-ui] pre:not(:has(> code[class*="language-"])) { background: #eeeeee !important; border: 1.5px solid #444444 !important; color: #111111 !important; }
+/* first-run "hello" dialog close button: white text on a now-light fill (guard log, 2026-09-28) */
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="onboarding-hello-close"] { color: #111111 !important; border: 1.5px solid #444444 !important; background: #ffffff !important; }

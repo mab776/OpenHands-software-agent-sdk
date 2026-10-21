@@ -1,0 +1,89 @@
+/* OpenHands Agent Canvas — LIGHT THEME (2026-09-24, for Marc's e-paper tablet).
+   The app ships ONE theme ("OpenHands-Neutral", dark). Its colours are centralised as CSS custom
+   properties on [data-agent-server-ui]: a --cool-grey-50…975 scale + ~70 --oh-* tokens (487 uses),
+   so a light theme is mostly an inverted grey scale. Activated by <html class="oh-light">, which
+   theme-toggle.js sets from localStorage["oh-theme"] or the OS/browser preference.
+   Injected inline into index.html by patch-ui.py at container start (edit → docker restart openhands). */
+html.oh-light [data-agent-server-ui] {
+  color-scheme: light;
+  --lightningcss-light: initial;
+  --lightningcss-dark: ;
+  /* inverted scale: 975 = brightest, 50 = darkest */
+  --cool-grey-975: #ffffff;
+  --cool-grey-950: #f7f8fa;
+  --cool-grey-925: #eff2f6;
+  --cool-grey-900: #e4e8ef;
+  --cool-grey-800: #d5dbe5;
+  --cool-grey-700: #bcc5d3;
+  --cool-grey-600: #8f9aad;
+  --cool-grey-500: #6c788c;
+  --cool-grey-400: #4d5769;
+  --cool-grey-300: #363e4d;
+  --cool-grey-200: #262d3a;
+  --cool-grey-100: #171c26;
+  --cool-grey-50:  #0b0e14;
+  /* accents re-tuned for contrast on white */
+  --oh-color-primary: #7a6a1f;
+  --oh-color-logo: #8a7a2a;
+  --oh-color-danger: #c0392b;
+  --oh-color-success: #2f7d17;
+  --oh-modal-title-foreground: #111;
+  /* 1.26.0 (2026-10-10): the "contrast" pair — #fff text/borders/washes (text-contrast, 324 uses) and
+     #000 text on a SOLID bg-contrast button (text-contrast-foreground). Inverted together. */
+  --oh-contrast: #111;
+  --oh-contrast-foreground: #fff;
+}
+/* the few hard-coded translucent whites used for hover/selection washes become blacks on light */
+html.oh-light [data-agent-server-ui] [class*="bg-white/"],
+html.oh-light [data-agent-server-ui] [class*="bg-[#ffffff"] { background-color: rgba(0, 0, 0, .06) !important; }
+/* hard-coded white TEXT (titles, table headers, "New version" tile): dark unless the element paints
+   its own background (buttons/badges keep white-on-colour) */
+html.oh-light [data-agent-server-ui] .text-white:not([class*="bg-"]),
+html.oh-light [data-agent-server-ui] .text-white.bg-transparent,
+html.oh-light [data-agent-server-ui] [class*="text-[#fff"]:not([class*="bg-"]) { color: var(--cool-grey-100) !important; }
+/* the composer input is `text-white bg-transparent` → typed text would be white on white */
+html.oh-light [data-agent-server-ui] [data-testid="chat-input"] { color: var(--cool-grey-100) !important; caret-color: var(--cool-grey-100); }
+/* markdown: the app pins every prose token to #fff via arbitrary classes ([--tw-prose-headings:#fff] …) */
+html.oh-light [data-agent-server-ui] .prose {
+  --tw-prose-headings: var(--cool-grey-100) !important;
+  --tw-prose-body: var(--cool-grey-100) !important;
+  --tw-prose-bold: var(--cool-grey-50) !important;
+  --tw-prose-counters: var(--cool-grey-300) !important;
+  --tw-prose-bullets: var(--cool-grey-400) !important;
+  --tw-prose-kbd: var(--cool-grey-100) !important;
+  --tw-prose-lead: var(--cool-grey-200) !important;
+  --tw-prose-quotes: var(--cool-grey-300) !important;
+  --tw-prose-code: var(--cool-grey-100) !important;
+  --tw-prose-links: #1f4fb0 !important;
+  --tw-prose-th-borders: var(--cool-grey-700) !important;
+  --tw-prose-td-borders: var(--cool-grey-800) !important;
+  --tw-prose-pre-bg: var(--cool-grey-925) !important;
+  --tw-prose-pre-code: var(--cool-grey-100) !important;
+}
+/* markdown table headers: rendered by the app's own table component (not .prose), white text on a
+   grey header background via their own classes */
+html.oh-light [data-agent-server-ui] th,
+html.oh-light [data-agent-server-ui] thead * { color: var(--cool-grey-100) !important; background-color: var(--cool-grey-900) !important; }
+/* home-page chips under the composer inherit white from a coloured-button ancestor (blank pills on the
+   tablet, 2026-09-24 photo; contrast 1.05 in the audit) */
+html.oh-light [data-agent-server-ui] [data-testid="open-workspace-button"],
+html.oh-light [data-agent-server-ui] [data-testid="open-workspace-button"] *,
+html.oh-light [data-agent-server-ui] [data-testid="open-plugin-picker"],
+html.oh-light [data-agent-server-ui] [data-testid="open-plugin-picker"] * { color: var(--cool-grey-100) !important; }
+html.oh-light [data-agent-server-ui] { --oh-focus: #1f4fb0; --oh-accent: #7a6a1f; --oh-warning: #8a5a00; --oh-success: #2f7d17; }
+/* the active nav item (settings sidebar, conversation list) is `bg-tertiary` + white text */
+html.oh-light [data-agent-server-ui] [aria-current="page"],
+html.oh-light [data-agent-server-ui] [aria-current="page"] * { color: var(--cool-grey-100) !important; }
+html.oh-light [data-agent-server-ui] [aria-current="page"].bg-tertiary { background-color: var(--cool-grey-900) !important; }
+/* the OpenHands hand logo is painted white in its paths → invert it on light backgrounds */
+html.oh-light [data-agent-server-ui] svg.max-w-none:has(path[fill="#fff"], path[fill="#FFF"], path[fill="white"], path[fill="#ffffff"], path[fill="#FFFFFF"]) { filter: invert(1); }
+/* switches: the ON state is a hard-coded white track + white knob (invisible on light) */
+html.oh-light [data-agent-server-ui] input:checked ~ span.rounded-full { background-color: var(--cool-grey-100) !important; border-color: var(--cool-grey-100) !important; }
+html.oh-light [data-agent-server-ui] input:checked ~ span.rounded-full > span { background-color: #ffffff !important; }
+/* send button: enabled state is `border-white` + a white-stroked arrow → filled dark circle, white arrow */
+html.oh-light [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) { background-color: var(--cool-grey-100) !important; border-color: var(--cool-grey-100) !important; }
+html.oh-light [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) svg,
+html.oh-light [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) svg * { stroke: #ffffff !important; color: #ffffff !important; }
+/* keep the terminal dark: it is a terminal, and its ANSI palette assumes it */
+html.oh-light [data-agent-server-ui] .xterm { color-scheme: dark; }
+/* e-paper tuning lives in eink-theme.css (html.oh-light.oh-eink) */
