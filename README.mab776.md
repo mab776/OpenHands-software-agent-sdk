@@ -13,6 +13,10 @@ To run this fork instead of PyPI:
 
 Companion fork: `mab776/OpenHands` (the Agent Canvas UI), branch `mab776-1.27.1`.
 
+`mab776-runtime/` (since 2026-10-21): backup copy of the runtime kit — the patches applied at start to
+the stock canvas image (`ui/`) and the stock PyPI agent-server (`host/`, incl. `oh_host_patches.py`
+runtime patches 1–4). Source of truth stays on the server; push a refreshed copy when they change.
+
 Update recipe: `git fetch origin --tags && git checkout -b mab776-<ver> v<ver>`, cherry-pick what upstream
 has not merged yet, run `tests/sdk/context/view/`, `git push -u mab776 mab776-<ver>`.
 `origin` = upstream (push disabled), `mab776` = this fork.
