@@ -49,15 +49,8 @@ ABLIT=$(llm_json "$ABLIT_MODEL")
 code=$(curl -s -o /tmp/oh-seed.out -w '%{http_code}' "${H[@]}" -X POST "$BASE/api/profiles/$ABLIT_MODEL" -d "{\"llm\":$ABLIT,\"include_secrets\":true}")
 echo "[seed] save profile $ABLIT_MODEL (always-abliterated) -> $code"
 
-# Qwen side-load (2026-10-19): stack 76 (GPU 1, IQ2_XS) answers on the SAME :8319 + model ids as stack 67. Its own
-# pair of profiles was made when it had 131,072 context; since 10-19 evening it serves 262,144 like the others, so
-# they now match Qwen / Qwen-a (kept as names so the dropdown says which engine you meant).
-for SL in "Qwen-sideload $MODEL" "Qwen-sideload-a $ABLIT_MODEL"; do
-  set -- $SL
-  SLJ=$(llm_json "$2")
-  code=$(curl -s -o /tmp/oh-seed.out -w '%{http_code}' "${H[@]}" -X POST "$BASE/api/profiles/$1" -d "{\"llm\":$SLJ,\"include_secrets\":true}")
-  echo "[seed] save profile $1 ($2, side-load) -> $code"
-done
+# Qwen side-load profiles REMOVED 2026-10-21 (Marc): stack 76 answers on the SAME :8319 + model ids as
+# stack 67, so Qwen-sideload / Qwen-sideload-a were exact duplicates of Qwen / Qwen-a.
 
 # DeepSeek-V4-Flash (2026-10-10) as a third saved LLM profile: the DeepSeek stacks on :8330 - llama.cpp stack 73 or
 # our Strata-DS4 stack 74 (same port + model id; the mode page's DeepSeek tile picks the engine, nothing to change
