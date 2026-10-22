@@ -1,17 +1,17 @@
-/* OpenHands "pull down on the header to reload". (2026-10-22)
-   Marc's phone opens the canvas in Hermit, which has no easy refresh. Hermit's own pull-to-refresh
-   does not fire reliably on this SPA (WebView only arms it when the document itself scrolls at top).
-   This script lives in index.html (served no-store), so it is always present: a touch that starts in
-   the top header strip (<=72 px) and drags clearly downward claims the gesture (preventDefault),
-   shows a "release to reload" pill, and on release past the threshold calls location.reload().
-   Taps, horizontal swipes, and drags starting anywhere else are untouched. */
+/* OpenHands "pull down on the header to reload". (2026-10-22, v2 — touch events)
+   Marc's phone opens the canvas in Hermit, which has no easy refresh. v1 used pointer events and the
+   whole header strip: header buttons capture pointers (setPointerCapture), so drags starting on the
+   buttons never reached the window listener. v2 listens to TOUCH events, which bubble from buttons no
+   matter what; the whole top bar (<=110 px, incl. safe-area) claims a clear downward drag, shows a
+   "release to reload" pill, and reloads on release past the threshold. Taps, horizontal swipes, drags
+   starting lower down, and gestures inside inputs/dialogs/menus are untouched. */
 (() => {
   if (window.__ohPullRefresh) return;
   window.__ohPullRefresh = true;
 
-  const HEAD_STRIP = 72;      // px from top considered "the header"
-  const CLAIM = 14;           // px of vertical travel before we claim the gesture
-  const THRESHOLD = 60;       // damped px needed for "release to reload"
+  const HEAD_STRIP = 110;     // px from top treated as "the header" (covers safe-area + bar)
+  const CLAIM = 10;           // px of downward travel before we claim the gesture
+  const THRESHOLD = 40;       // damped px needed for "release to reload" (~80 px of finger travel)
   const ID = 'oh-pull-refresh';
 
   const css = document.createElement('style');
@@ -21,8 +21,7 @@
       background: rgba(20,20,24,.92); color: #eee; font: 500 13px/1.2 system-ui, sans-serif;
       box-shadow: 0 4px 14px rgba(0,0,0,.35); pointer-events: none; transition: top .18s ease; }
     #${ID}.on { top: max(env(safe-area-inset-top), 6px); }
-    #${ID} svg { width: 16px; height: 16px; transition: transform .1s linear; }
-    #${ID} .lbl { min-width: 92px; }`;
+    #${ID} svg { width: 16px; height: 16px; transition: transform .1s linear; }`;
   (document.head || document.documentElement).appendChild(css);
 
   const pill = document.createElement('div');
@@ -34,49 +33,50 @@
   const arrow = pill.querySelector('svg');
   const label = pill.querySelector('.lbl');
 
-  let pid = null, y0 = 0, x0 = 0, dy = 0, claimed = false, ready = false;
+  let active = false, claimed = false, ready = false, y0 = 0, x0 = 0, dy = 0;
+  const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
 
   const reset = () => {
-    pid = null; claimed = false; ready = false; dy = 0;
+    active = claimed = ready = false; dy = 0;
     pill.classList.remove('on');
     label.textContent = 'Pull to reload';
   };
 
-  addEventListener('pointerdown', (e) => {
-    if (pid !== null || !e.isPrimary || e.pointerType === 'mouse') return;
-    if (e.clientY > HEAD_STRIP) return;
-    const t = e.target;
-    if (t.closest && t.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="menu"]')) return;
-    pid = e.pointerId; y0 = e.clientY; x0 = e.clientX; claimed = false; ready = false;
+  addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { reset(); return; }
+    const t = e.touches[0];
+    if (t.clientY > HEAD_STRIP) return;
+    const el = e.target;
+    if (el.closest && el.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="menu"]')) return;
+    active = true; claimed = false; ready = false; y0 = t.clientY; x0 = t.clientX;
   }, { passive: true });
 
-  addEventListener('pointermove', (e) => {
-    if (e.pointerId !== pid) return;
-    const ddy = e.clientY - y0, ddx = e.clientX - x0;
+  // Non-passive: only cancels native scroll once a header pull has been claimed.
+  addEventListener('touchmove', (e) => {
+    if (!active || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const ddy = t.clientY - y0, ddx = t.clientX - x0;
     if (!claimed) {
-      if (ddy < CLAIM || Math.abs(ddy) < Math.abs(ddx) * 1.5) return;
+      if (ddy < CLAIM || Math.abs(ddy) < Math.abs(ddx) * 1.3) { active = false; return; }
       claimed = true;
       pill.classList.add('on');
-      if (navigator.vibrate) navigator.vibrate(10);
+      buzz(10);
     }
-    dy = ddy * 0.5;                        // rubber-band damping
+    e.preventDefault();
+    dy = ddy * 0.5;                       // rubber-band damping
     arrow.style.transform = `rotate(${Math.min(dy, 180) * 2}deg)`;
-    const wasReady = ready;
+    const was = ready;
     ready = dy >= THRESHOLD;
     label.textContent = ready ? 'Release to reload' : 'Pull to reload';
-    if (ready && !wasReady && navigator.vibrate) navigator.vibrate(20);
-  }, { passive: true });
+    if (ready && !was) buzz(20);
+  }, { passive: false });
 
-  // WebView: preventDefault on pointermove does NOT stop native scroll — touchmove does.
-  // Non-passive, but only ever cancels once the gesture was claimed by a header pull.
-  addEventListener('touchmove', (e) => { if (claimed) e.preventDefault(); }, { passive: false });
-
-  const up = (e) => {
-    if (e.pointerId !== pid) return;
+  const end = (e) => {
+    if (!active) return;
     const go = claimed && ready;
     reset();
-    if (go) { if (navigator.vibrate) navigator.vibrate(30); location.reload(); }
+    if (go) { buzz(30); location.reload(); }
   };
-  addEventListener('pointerup', up, { passive: true });
-  addEventListener('pointercancel', () => { if (pid !== null) reset(); }, { passive: true });
+  addEventListener('touchend', end, { passive: true });
+  addEventListener('touchcancel', reset, { passive: true });
 })();
