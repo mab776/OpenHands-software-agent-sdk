@@ -5,7 +5,10 @@ Keep this file tiny and every patch dated + justified; delete a patch once the p
 Active: 2. event search limited to the active branch (2026-10-19, in-place "edit my last message"); 3. reasoning effort
 sent to the local coders via extra_body (2026-10-19, the "+" menu Thinking list); 4. workspace-preview cookie usable
 over plain http (2026-10-21, Files-tab previews 401'd on http://192.168.0.70:3003); 5. workspace preview falls back
-to the absolute path (2026-10-21, out-of-workspace files like /tmp/*.jpg 404'd). See below.
+to the absolute path (2026-10-21, out-of-workspace files like /tmp/*.jpg 404'd); 6. a message typed while the model
+is answering goes AFTER that answer in the next prompt (2026-10-22, it rewrote history the model had already read = the
+engine re-read the whole 166k conversation); 7. the condenser follows a profile switch (2026-10-22, it kept calling the
+stopped Qwen on :8319 = ~2 min of retries every DeepSeek turn). See below.
 
 Retired:
 
@@ -188,3 +191,185 @@ try:
     _log.info("oh_host_patches: workspace preview falls back to the absolute path (out-of-workspace files)")
 except Exception:
     _log.exception("oh_host_patches: patch 5 failed to apply")
+
+
+# 6. (2026-10-22) A message typed WHILE the model is answering. The SDK appends events in arrival order, so the next
+#    prompt read [tool results, YOUR MESSAGE, the model's reply, ...] - the reply claims to have seen a message it never
+#    saw, and the prompt the model already read changed 3 tokens from its end (DeepSeek V4.1's template folds the
+#    message into the tool-result turn: "</tool_result>" -> "</tool_result>\n\n..."). Stack 78's prompt cache only
+#    reuses an exact prefix, so each such turn re-read the WHOLE conversation: 165,986 tokens in 93 s instead of ~13 s
+#    (engine log 15:18 + 15:22, conversation 7f819af5). Here: every LLM request records the last event it included
+#    (llm_response_id -> that event id, also appended to state/llm_context_ends.jsonl so it survives a restart), and the
+#    projection to messages moves user messages that landed between that event and the reply to after the reply and its
+#    tool results - the order the model actually lived. Only replies made with this patch loaded are touched (older
+#    history renders exactly as before = no cache bust on upgrade); anything unusual (another kind of event in between,
+#    a tool call without its result yet, the request's last event condensed away) keeps the stored order.
+try:
+    import contextvars as _cv
+    import json as _json
+    import os as _os
+    import threading as _threading
+
+    from openhands.sdk.agent import agent as _agent_mod
+    from openhands.sdk.event.base import LLMConvertibleEvent as _LCE
+    from openhands.sdk.event.llm_convertible import ActionEvent as _AE
+    from openhands.sdk.event.llm_convertible import MessageEvent as _ME
+    from openhands.sdk.event.llm_convertible import ObservationBaseEvent as _OBE
+
+    _ctx_path = _os.path.join(
+        _os.path.dirname(_os.environ.get("OH_CONVERSATIONS_PATH", "/home/mab776/openhands-host/state/conversations")),
+        "llm_context_ends.jsonl",
+    )
+    _ctx_ends: dict = {}  # llm_response_id -> id of the last event its request included
+    _ctx_lock = _threading.Lock()
+    _ctx_now: _cv.ContextVar = _cv.ContextVar("oh_ctx_end", default=None)
+    try:
+        with open(_ctx_path) as _f:
+            for _line in _f:
+                try:
+                    _r = _json.loads(_line)
+                    _ctx_ends[_r["r"]] = _r["e"]
+                except Exception:
+                    pass
+    except FileNotFoundError:
+        pass
+
+    def _note_view(view, result):
+        if isinstance(result, list):
+            evs = getattr(view, "events", None)
+            if evs:
+                _ctx_now.set(evs[-1].id)
+
+    _orig_prepare = _agent_mod.prepare_llm_messages
+    _orig_aprepare = _agent_mod.aprepare_llm_messages
+
+    def _prepare(view, *a, **k):
+        result = _orig_prepare(view, *a, **k)
+        _note_view(view, result)
+        return result
+
+    async def _aprepare(view, *a, **k):
+        result = await _orig_aprepare(view, *a, **k)
+        _note_view(view, result)
+        return result
+
+    _agent_mod.prepare_llm_messages = _prepare
+    _agent_mod.aprepare_llm_messages = _aprepare
+
+    def _record(events, n0, ctx_end):
+        new = []
+        with _ctx_lock:
+            for i in range(n0, len(events)):
+                e = events[i]
+                rid = getattr(e, "llm_response_id", None)
+                if rid and getattr(e, "source", None) == "agent" and rid not in _ctx_ends:
+                    _ctx_ends[rid] = ctx_end
+                    new.append({"r": rid, "e": ctx_end})
+            if new:
+                try:
+                    with open(_ctx_path, "a") as f:
+                        f.writelines(_json.dumps(r) + "\n" for r in new)
+                except Exception:
+                    _log.exception("oh_host_patches: could not save the request ends (kept in memory)")
+
+    _orig_step = _agent_mod.Agent._step
+    _orig_astep = _agent_mod.Agent._astep
+
+    def _step(self, conversation, on_event, stream):
+        token = _ctx_now.set(None)
+        events = conversation.state.events
+        n0 = len(events)
+        try:
+            return _orig_step(self, conversation, on_event, stream)
+        finally:
+            ctx_end = _ctx_now.get()
+            _ctx_now.reset(token)
+            if ctx_end:
+                _record(events, n0, ctx_end)
+
+    async def _astep(self, conversation, on_event, stream):
+        token = _ctx_now.set(None)
+        events = conversation.state.events
+        n0 = len(events)
+        try:
+            return await _orig_astep(self, conversation, on_event, stream)
+        finally:
+            ctx_end = _ctx_now.get()
+            _ctx_now.reset(token)
+            if ctx_end:
+                _record(events, n0, ctx_end)
+
+    _agent_mod.Agent._step = _step
+    _agent_mod.Agent._astep = _astep
+
+    def _is_reply(e):
+        return isinstance(e, (_AE, _ME)) and e.source == "agent" and getattr(e, "llm_response_id", None)
+
+    def _causal_order(events):
+        out = list(events)
+        i = 0
+        while i < len(out):
+            e = out[i]
+            ctx_end = _ctx_ends.get(e.llm_response_id) if _is_reply(e) else None
+            if ctx_end is None:
+                i += 1
+                continue
+            c = next((n for n in range(i - 1, -1, -1) if out[n].id == ctx_end), None)
+            late = out[c + 1 : i] if c is not None else []
+            if not late or not all(isinstance(x, _ME) and x.source == "user" for x in late):
+                i += 1
+                continue
+            rid = e.llm_response_id
+            j = i
+            while j < len(out) and _is_reply(out[j]) and out[j].llm_response_id == rid:
+                j += 1
+            calls = {x.tool_call_id for x in out[i:j] if isinstance(x, _AE)}
+            k = j
+            while k < len(out) and calls and isinstance(out[k], _OBE) and out[k].tool_call_id in calls:
+                k += 1
+            if calls - {x.tool_call_id for x in out[j:k]}:
+                i = j  # a tool call still waits for its result: keep the stored order
+                continue
+            out[c + 1 : k] = out[i:k] + late
+            i = k
+        return out
+
+    _orig_e2m = _LCE.events_to_messages
+
+    def _events_to_messages(events):
+        try:
+            if _ctx_ends:
+                events = _causal_order(events)
+        except Exception:
+            _log.exception("oh_host_patches: causal reorder failed; stored order used")
+        return _orig_e2m(events)
+
+    _LCE.events_to_messages = staticmethod(_events_to_messages)
+    _log.info("oh_host_patches: messages typed mid-answer follow that answer (%d request ends loaded)", len(_ctx_ends))
+except Exception:
+    _log.exception("oh_host_patches: patch 6 failed to apply")
+
+
+# 7. (2026-10-22) The condenser follows a profile switch. LocalConversation._condenser_for_switched_llm moves the
+#    summarizing condenser to the new model ONLY when its LLM config equals the old agent LLM's byte for byte; ours
+#    differed, so conversation 7f819af5 (started on Qwen, switched to DeepSeek) kept a condenser on :8319 with Qwen
+#    stopped. Past condenser.max_size (240 events) every step tried to condense: 5 connection-refused attempts with
+#    8-64 s back-off (~2 min, journalctl "Connection error.. Attempt #4") before the DeepSeek call even started.
+#    We never configure a separate condenser model (Settings -> Condenser has none; build_condenser copies the agent
+#    LLM), so it always follows the agent's LLM, keeping its own usage_id.
+try:
+    from openhands.sdk.context.condenser import LLMSummarizingCondenser as _LSC
+    from openhands.sdk.conversation.impl.local_conversation import LocalConversation as _LC
+
+    def _condenser_follows(self, current_llm, new_llm):
+        condenser = self.agent.condenser
+        if not isinstance(condenser, _LSC):
+            return condenser
+        condenser_llm = new_llm.model_copy(update={"usage_id": condenser.llm.usage_id})
+        condenser_llm.reset_metrics()
+        return condenser.model_copy(update={"llm": condenser_llm})
+
+    _LC._condenser_for_switched_llm = _condenser_follows
+    _log.info("oh_host_patches: the condenser follows a profile switch")
+except Exception:
+    _log.exception("oh_host_patches: patch 7 failed to apply")
