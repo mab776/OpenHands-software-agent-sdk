@@ -132,6 +132,45 @@ def keep_pause_visible() -> None:
         print(f"[oh-ui] pause patch failed: {exc}", file=sys.stderr)
 
 
+def sort_pinned_by_use() -> None:
+    """The sidebar's pinned section rendered pins in pin-click order: the store prepends each newly
+    pinned id (pinsByBackendId in root-layout-*.js) and the section mapper resolved ids in that order,
+    so an often-used old pin sank to the bottom (Marc 2026-10-21). Sort the resolved pinned list by
+    updated_at desc instead - the same "latest used" order the chronological list uses. The store keeps
+    its pin order (localStorage untouched); only rendering changes. Idempotent; fail-open."""
+    try:
+        pat = re.compile(
+            r"function (?P<fn>[A-Za-z_$][\w$]*)\((?P<pins>[A-Za-z_$][\w$]*),(?P<conns>[A-Za-z_$][\w$]*)\)"
+            r"\{let (?P<mp>[A-Za-z_$][\w$]*)=new Map\((?P=conns)\.map\((?P<a>[A-Za-z_$][\w$]*)=>\[(?P=a)\.id,(?P=a)\]\)\);"
+            r"return (?P=pins)\.map\((?P<b>[A-Za-z_$][\w$]*)=>(?P=mp)\.get\((?P=b)\)\)"
+            r"\.filter\((?P<c>[A-Za-z_$][\w$]*)=>(?P=c)!=null\)\}")
+        done = 0
+        for f in ASSETS.glob("*.js"):
+            src = f.read_text(encoding="utf-8")
+
+            def repl(m):
+                fn, pins, conns, mp = (m.group(n) for n in ("fn", "pins", "conns", "mp"))
+                # the minifier reuses one identifier for every lambda param, so the sort
+                # callback needs its own fresh names (shadowing is harmless here)
+                return ("function " + fn + "(" + pins + "," + conns + "){let " + mp
+                        + "=new Map(" + conns + ".map(e=>[e.id,e]));"
+                        "return " + pins + ".map(e=>" + mp + ".get(e)).filter(e=>e!=null)"
+                        ".sort((__pa,__pb)=>(Date.parse(__pb.updated_at??__pb.created_at??0)||0)"
+                        "-(Date.parse(__pa.updated_at??__pa.created_at??0)||0))}")
+
+            new, n = pat.subn(repl, src)
+            if n == 1:
+                f.write_text(new, encoding="utf-8")
+                print(f"[oh-ui] pinned-sort: pinned conversations now ordered by last activity ({f.name})")
+                done += 1
+            elif n > 1:
+                print(f"[oh-ui] pinned-sort: {n} matches in {f.name} - skipping", file=sys.stderr)
+        if not done:
+            print("[oh-ui] pinned-sort: pattern not found (already patched, or the build changed)")
+    except Exception as exc:  # never block boot
+        print(f"[oh-ui] pinned-sort patch failed: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     if not INDEX.is_file():
         print(f"[oh-ui] skip: missing {INDEX}", file=sys.stderr)
@@ -173,6 +212,7 @@ def main() -> int:
         html = html.replace("</body>", f'<script id="{JS_MARK}">\n' + "\n".join(js_parts) + "\n</script></body>", 1)
     INDEX.write_text(html, encoding="utf-8")
     keep_pause_visible()
+    sort_pinned_by_use()
     print(
         f"[oh-ui] injected {len(css_parts)} stylesheet(s) ({sum(len(c) for c in css_parts)} bytes, replaced={removed_css}) "
         f"+ {len(js_parts)} script(s) ({sum(len(j) for j in js_parts)} bytes JS, replaced={removed_js})"
