@@ -35,7 +35,7 @@ CSS_MARK = "oh-light-theme-injected"
 JS_MARK = "oh-mode-pill-injected"           # historical id, now holds ALL scripts
 CSS_BLOCK = re.compile(r'<style id="%s">.*?</style>' % re.escape(CSS_MARK), re.DOTALL)
 JS_BLOCK = re.compile(r'<script id="%s">.*?</script>' % re.escape(JS_MARK), re.DOTALL)
-SCRIPTS = ["voice-seed.js", "pause-guard.js", "mode-toggle.js", "edit-last.js", "effort-menu.js", "theme-toggle.js", "eink-guard.js"]
+SCRIPTS = ["voice-seed.js", "pause-guard.js", "pull-refresh.js", "mode-toggle.js", "edit-last.js", "effort-menu.js", "theme-toggle.js", "eink-guard.js"]
 STYLES = ["light-theme.css", "eink-theme.css"]
 
 # HeroUI (the component library behind dropdowns, list boxes, modals, selects…) has its OWN colour
