@@ -4,7 +4,8 @@ Keep this file tiny and every patch dated + justified; delete a patch once the p
 
 Active: 2. event search limited to the active branch (2026-10-19, in-place "edit my last message"); 3. reasoning effort
 sent to the local coders via extra_body (2026-10-19, the "+" menu Thinking list); 4. workspace-preview cookie usable
-over plain http (2026-10-21, Files-tab previews 401'd on http://192.168.0.70:3003). See below.
+over plain http (2026-10-21, Files-tab previews 401'd on http://192.168.0.70:3003); 5. workspace preview falls back
+to the absolute path (2026-10-21, out-of-workspace files like /tmp/*.jpg 404'd). See below.
 
 Retired:
 
@@ -157,3 +158,33 @@ try:
     _log.info("oh_host_patches: workspace cookie mints SameSite=Lax on plain http (file previews)")
 except Exception:
     _log.exception("oh_host_patches: patch 4 failed to apply")
+
+
+# 5. (2026-10-21) Previews of files OUTSIDE the conversation workspace (e.g. an image the agent read from /tmp)
+#    still 404'd even with a valid cookie. The Files tab builds the <img> src by stripping the leading slash off the
+#    absolute path (frontend W(): "/tmp/x.jpg" -> "tmp/x.jpg"), and workspace_router resolves that relative to the
+#    workspace dir -> golf/tmp/x.jpg -> 404 "File not found" (journalctl: GET .../workspace/tmp/sheet_A_turbo_only.jpg
+#    404). Here: when the workspace-relative lookup 404s, retry the same remainder as an absolute path. No privilege
+#    added: the cookie is only minted to clients that already hold the session key, which can read any absolute path
+#    through /api/file/download anyway — this just makes the <img> path match that existing access.
+try:
+    from openhands.agent_server import workspace_router as _wr
+
+    _orig_serve_path = _wr._serve_path
+
+    def _serve_path_abs_fallback(workspace_dir, file_path):
+        try:
+            return _orig_serve_path(workspace_dir, file_path)
+        except Exception as exc:
+            detail = getattr(exc, "detail", "")
+            if detail != "File not found" or not file_path:
+                raise
+            absolute = _wr.Path("/") / file_path
+            if absolute.is_file():
+                return _wr.FileResponse(path=absolute)
+            raise
+
+    _wr._serve_path = _serve_path_abs_fallback
+    _log.info("oh_host_patches: workspace preview falls back to the absolute path (out-of-workspace files)")
+except Exception:
+    _log.exception("oh_host_patches: patch 5 failed to apply")
