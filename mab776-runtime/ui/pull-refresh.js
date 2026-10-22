@@ -1,17 +1,24 @@
-/* OpenHands "pull down on the header to reload". (2026-10-22, v2 — touch events)
-   Marc's phone opens the canvas in Hermit, which has no easy refresh. v1 used pointer events and the
-   whole header strip: header buttons capture pointers (setPointerCapture), so drags starting on the
-   buttons never reached the window listener. v2 listens to TOUCH events, which bubble from buttons no
-   matter what; the whole top bar (<=110 px, incl. safe-area) claims a clear downward drag, shows a
-   "release to reload" pill, and reloads on release past the threshold. Taps, horizontal swipes, drags
-   starting lower down, and gestures inside inputs/dialogs/menus are untouched. */
+/* OpenHands "pull down on the header to reload". (2026-10-22, v3 — sticky claim, early cancel)
+   Marc's phone opens the canvas in Hermit, which has no easy refresh.
+   v1 (pointer events) failed: header buttons capture pointers, so the window never saw the drag.
+   v2 (touch events) worked but intermittently: it let the first moves pass un-cancelled while
+   deciding intent, and Android WebView then often armed its own scroll/pull-to-refresh and killed
+   our stream with touchcancel — whoever won the race decided whether it worked. Curved thumb drags
+   also got permanently rejected by v2's single-shot claim check.
+   v3: (a) as soon as a drag from the header strip is downward-dominant (>=4 px), preventDefault it
+   BEFORE the browser can arm, so touchcancel never fires mid-gesture; (b) intent is sticky — judged
+   on cumulative displacement every move, so a wobbly or curved thumb still claims; (c) extra fingers
+   are ignored instead of cancelling; (d) if the system steals a ready gesture (touchcancel), release
+   still reloads. Taps, horizontal drags (the tab chip row scrolls!), upward scrolls, inputs, dialogs
+   and menus are untouched. */
 (() => {
   if (window.__ohPullRefresh) return;
   window.__ohPullRefresh = true;
 
-  const HEAD_STRIP = 110;     // px from top treated as "the header" (covers safe-area + bar)
-  const CLAIM = 10;           // px of downward travel before we claim the gesture
-  const THRESHOLD = 40;       // damped px needed for "release to reload" (~80 px of finger travel)
+  const HEAD_STRIP = 110;   // px from top treated as "the header" (covers safe-area + bar)
+  const CANCEL_AT = 4;      // px of downward-dominant travel where we start cancelling native scroll
+  const CLAIM = 12;         // px (damped later) where the pill appears
+  const THRESHOLD = 40;     // damped px for "release to reload" (~80 px of finger travel)
   const ID = 'oh-pull-refresh';
 
   const css = document.createElement('style');
@@ -33,50 +40,64 @@
   const arrow = pill.querySelector('svg');
   const label = pill.querySelector('.lbl');
 
-  let active = false, claimed = false, ready = false, y0 = 0, x0 = 0, dy = 0;
+  let active = false, claimed = false, ready = false, y0 = 0, x0 = 0, dy = 0, dx = 0;
   const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
 
   const reset = () => {
-    active = claimed = ready = false; dy = 0;
+    active = claimed = ready = false; dy = dx = 0;
     pill.classList.remove('on');
     label.textContent = 'Pull to reload';
   };
+  const release = () => {                       // gesture abandoned: hand control back to the page
+    active = claimed = ready = false;
+    pill.classList.remove('on');
+  };
 
   addEventListener('touchstart', (e) => {
-    if (e.touches.length !== 1) { reset(); return; }
-    const t = e.touches[0];
-    if (t.clientY > HEAD_STRIP) return;
-    const el = e.target;
-    if (el.closest && el.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="menu"]')) return;
-    active = true; claimed = false; ready = false; y0 = t.clientY; x0 = t.clientX;
+    if (!active && e.touches.length === 1) {
+      const t = e.touches[0];
+      const el = e.target;
+      if (t.clientY <= HEAD_STRIP && !(el.closest
+          && el.closest('input,textarea,select,[contenteditable="true"],[role="dialog"],[role="menu"]'))) {
+        active = true; claimed = false; ready = false; y0 = t.clientY; x0 = t.clientX; dy = dx = 0;
+      }
+    }
   }, { passive: true });
 
-  // Non-passive: only cancels native scroll once a header pull has been claimed.
+  // Non-passive, but only ever cancels a downward-dominant drag that started on the header.
   addEventListener('touchmove', (e) => {
-    if (!active || e.touches.length !== 1) return;
+    if (!active || e.touches.length === 0) return;
     const t = e.touches[0];
-    const ddy = t.clientY - y0, ddx = t.clientX - x0;
-    if (!claimed) {
-      if (ddy < CLAIM || Math.abs(ddy) < Math.abs(ddx) * 1.3) { active = false; return; }
+    dy = t.clientY - y0;
+    dx = t.clientX - x0;
+    if (dy < -12) { release(); return; }                       // intent is up: native scroll may proceed
+    if (!claimed && dy < CLAIM && Math.abs(dx) > 24 && Math.abs(dx) > dy * 2) { release(); return; }
+    if (dy >= CANCEL_AT && dy > Math.abs(dx) * 0.8) e.preventDefault();
+    if (!claimed && dy >= CLAIM && dy > Math.abs(dx)) {
       claimed = true;
       pill.classList.add('on');
       buzz(10);
     }
-    e.preventDefault();
-    dy = ddy * 0.5;                       // rubber-band damping
-    arrow.style.transform = `rotate(${Math.min(dy, 180) * 2}deg)`;
+    if (!claimed) return;
+    const shown = dy * 0.5;                    // rubber-band damping, display + threshold only
+    arrow.style.transform = `rotate(${Math.min(shown, 180) * 2}deg)`;
     const was = ready;
-    ready = dy >= THRESHOLD;
+    ready = shown >= THRESHOLD;
     label.textContent = ready ? 'Release to reload' : 'Pull to reload';
     if (ready && !was) buzz(20);
   }, { passive: false });
 
-  const end = (e) => {
+  const end = () => {
     if (!active) return;
     const go = claimed && ready;
     reset();
     if (go) { buzz(30); location.reload(); }
   };
   addEventListener('touchend', end, { passive: true });
-  addEventListener('touchcancel', reset, { passive: true });
+  addEventListener('touchcancel', () => {      // system stole the pointer mid-gesture
+    if (!active) return;
+    const go = claimed && ready;
+    reset();
+    if (go) { buzz(30); location.reload(); }
+  }, { passive: true });
 })();
