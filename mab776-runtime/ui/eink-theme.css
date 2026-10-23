@@ -46,16 +46,20 @@ html.oh-light.oh-eink [data-agent-server-ui] {
   --oh-color-logo: #000000;
   --oh-accent: #000000;
   --oh-accent-foreground: #ffffff;
-  --oh-warning: #aa5500;
-  --oh-success: #008800;
-  --oh-status-success: #008800;
-  --oh-color-success: #008800;
-  --oh-status-error: #cc0000;
-  --oh-color-danger: #cc0000;
-  --oh-danger: #cc0000;
+  /* Kaleido-3 palette (measured, see mode-toggle/eink/PALETTE-KALEIDO3.md, 2026-10-22):
+     these tokens paint TEXT and BORDERS -> halfway-pure values; pure #00ff00 is unreadable as
+     thin ink on white, mid-tones (#008800) render BLACK on the panel. FILLS use pure colours
+     (--ink-*-fill below). #00aa00/#bb6600 are the doc's unverified picks. */
+  --oh-warning: #bb6600;
+  --oh-success: #00aa00;
+  --oh-status-success: #00aa00;
+  --oh-color-success: #00aa00;
+  --oh-status-error: #b7094c;
+  --oh-color-danger: #b7094c;
+  --oh-danger: #b7094c;
   --oh-focus: #000000;
-  --oh-link: #0033aa;
-  --tw-prose-links: #0033aa !important;
+  --oh-link: #0000cc;
+  --tw-prose-links: #0000cc !important;
   -webkit-font-smoothing: auto;
 }
 /* thicker ink everywhere: e-paper renders thin strokes grey */
@@ -123,30 +127,36 @@ html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:not(:
 
 /* ===================== COLOUR ACCENTS (2026-09-24, Marc: "really black and white, could have used
    more colours") =====================
-   The colour filter on a Kaleido-type panel renders SATURATED colour cleanly on lines, text and small
-   solid shapes, and turns pale TINTS into a dither texture. So: colour on strokes, text, rings, dots and
-   small buttons only — every background stays white. Hues picked to stay readable as text on white and
-   distinct from each other through the filter. Meaning is consistent:
-     blue = interaction / you · green = done / alive · orange = the agent's actions · purple = its thinking / code
-     red = errors (above). */
+   Measured on Marc's Boox (mode-toggle/eink/PALETTE-KALEIDO3.md): MAX-saturation pure fills render as
+   clean PASTELS on Kaleido 3; mid-tone fills (#008800, #cc0000, #aa5500) render muddy dark/brown/black.
+   So two families: --ink-*-fill (pure, for solid areas: dots, bars, discs, tracks) and --ink-* (text/
+   border; pure is unreadable as thin ink, halfway-pure is the compromise). Meaning is consistent:
+     blue = interaction / you · green = done / alive · amber = the agent's actions · purple = thinking / code
+     red = errors. Blues/purples are deep and unchanged in role; amber replaces the old orange (#c85000
+   was a warned mid-tone; its pure fill is #ffcc00, because the strip's gold #CBA230 photographs brown). */
 html.oh-light.oh-eink [data-agent-server-ui] {
+  --ink-blue-fill: #0000ff;
+  --ink-green-fill: #00ff00;
+  --ink-amber-fill: #ffcc00;
+  --ink-purple-fill: #6600ff;
+  --ink-red-fill: #ff0000;
   --ink-blue: #0047bb;
-  --ink-green: #00843d;
-  --ink-orange: #c85000;
-  --ink-purple: #6a1b9a;
-  --ink-red: #c8102e;
+  --ink-green: #00aa00;      /* unverified on device — doc's halfway pick */
+  --ink-orange: #bb6600;     /* unverified on device — doc's halfway pick */
+  --ink-purple: #6a1b9a;   /* accepted on device before; strip #18 (#3e0992) is fill-only */
+  --ink-red: #b7094c;     /* strip #7 crimson: pure red is unreadable as thin text */
   --oh-link: var(--ink-blue);
   --oh-status-success: var(--ink-green);
   --oh-status-error: var(--ink-red);
 }
 /* interaction = blue */
 html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-surface)]"]:has(> .relative.w-full [data-testid="chat-input"]) { border: 2px solid var(--ink-blue) !important; }
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) { background-color: var(--ink-blue) !important; border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:not(:disabled) { background-color: var(--ink-blue-fill) !important; border-color: var(--ink-blue) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled { border-color: var(--ink-blue) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled svg,
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="submit-button"]:disabled svg * { stroke: var(--ink-blue) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="chat-plus-button"] { border-color: var(--ink-blue) !important; color: var(--ink-blue) !important; }
-html.oh-light.oh-eink [data-agent-server-ui] input:checked ~ span.rounded-full { background-color: var(--ink-blue) !important; border-color: var(--ink-blue) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] input:checked ~ span.rounded-full { background-color: var(--ink-blue-fill) !important; border-color: var(--ink-blue) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-ring-arc"] { stroke: var(--ink-blue) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] a:not([class*="bg-"]):not([data-testid^="sidebar"]) { color: var(--ink-blue); }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="markdown-renderer"] a { color: var(--ink-blue) !important; text-decoration: underline; }
@@ -158,7 +168,7 @@ html.oh-light.oh-eink [data-agent-server-ui] [data-testid="user-message"] { back
 /* alive / done = green, as solid dots and ticks */
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-active"],
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="backend-status-dot"],
-html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-status-success)]"] { background-color: var(--ink-green) !important; color: var(--ink-green) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [class*="bg-[var(--oh-status-success)]"] { background-color: var(--ink-green-fill) !important; color: var(--ink-green) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-check"],
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="conversation-status-check"] * { color: var(--ink-green) !important; stroke: var(--ink-green) !important; }
 /* the agent's work: actions orange, thinking purple (so a long run scans at a glance) */
@@ -200,10 +210,10 @@ html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] {
   height: 12px !important; background: #ffffff !important; border: 1.5px solid #333333 !important; overflow: hidden;
 }
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span { background: var(--ink-blue) !important; border-radius: 0 !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span { background: var(--ink-blue-fill) !important; border-radius: 0 !important; }
 /* fill width is an inline "width: NN.NNNN%" → 60–79 % orange, ≥ 80 % red (single-digit values excluded) */
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 6"], [style^="width: 7"]):not([style^="width: 6."], [style^="width: 6%"], [style^="width: 7."], [style^="width: 7%"]) { background: var(--ink-orange) !important; }
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 8"], [style^="width: 9"], [style^="width: 100"]):not([style^="width: 8."], [style^="width: 8%"], [style^="width: 9."], [style^="width: 9%"]) { background: var(--ink-red) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 6"], [style^="width: 7"]):not([style^="width: 6."], [style^="width: 6%"], [style^="width: 7."], [style^="width: 7%"]) { background: var(--ink-amber-fill) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter-bar-button"] > span:is([style^="width: 8"], [style^="width: 9"], [style^="width: 100"]):not([style^="width: 8."], [style^="width: 8%"], [style^="width: 9."], [style^="width: 9%"]) { background: var(--ink-red-fill) !important; }
 /* "Compact context" → a real outlined button */
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-compact-button"] {
   color: var(--ink-blue) !important; border: 1.5px solid var(--ink-blue) !important; border-radius: 6px !important;
@@ -214,7 +224,7 @@ html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-plan-u
 /* the ring next to Send: neutral track (was 42 %-alpha → dither), arc coloured by the same levels,
    read from the button's aria-label "Context window usage: NN% used" */
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-ring-track"] { stroke: #bbbbbb !important; }
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter"]:is([aria-label*="usage: 6"], [aria-label*="usage: 7"]):not([aria-label*="usage: 6%"], [aria-label*="usage: 7%"]) [data-testid="context-window-ring-arc"] { stroke: var(--ink-orange) !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter"]:is([aria-label*="usage: 6"], [aria-label*="usage: 7"]):not([aria-label*="usage: 6%"], [aria-label*="usage: 7%"]) [data-testid="context-window-ring-arc"] { stroke: var(--ink-amber-fill) !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="context-window-meter"]:is([aria-label*="usage: 8"], [aria-label*="usage: 9"], [aria-label*="usage: 100"]):not([aria-label*="usage: 8%"], [aria-label*="usage: 9%"]) [data-testid="context-window-ring-arc"] { stroke: var(--ink-red) !important; }
 
 /* ===================== promoted from the e-ink guard log (ui/eink-audit.sh, 2026-09-25) =====================
@@ -224,7 +234,7 @@ html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-git-sync"
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-add-automation"] { color: #111111 !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-git-sync"],
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-add-automation"] { border: 1.5px solid #444444 !important; background: #ffffff !important; }
-html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-create-automation"] { background: var(--ink-blue) !important; color: #ffffff !important; }
+html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-create-automation"] { background: var(--ink-blue-fill) !important; color: #ffffff !important; }
 html.oh-light.oh-eink [data-agent-server-ui] [data-testid="automations-create-automation"] * { color: #ffffff !important; }
 /* skeleton loaders: a flat light bar, no shimmer */
 html.oh-light.oh-eink [data-agent-server-ui] .skeleton,

@@ -47,13 +47,15 @@ STYLES = ["light-theme.css", "eink-theme.css"]
 SCOPE_LIGHT = ("html.oh-light [data-agent-server-ui], html.oh-light [data-agent-server-ui] .dark, "
                "html.oh-light [data-agent-server-ui] [data-theme=dark]")
 SCOPE_EINK = SCOPE_LIGHT.replace("html.oh-light", "html.oh-light.oh-eink")
-# e-ink ink colours (same as eink-theme.css --ink-*) as HSL
+# e-ink ink colours as HSL — MAX-saturation pure values per mode-toggle/eink/PALETTE-KALEIDO3.md
+# (2026-10-22): HeroUI uses these families for SOLID fills (buttons, selected chips, badges), and on
+# Kaleido 3 pure colours render as clean pastels while mid-tones go muddy dark/brown/black.
 INK = {
-    "primary": (217, 100.0, 36.7),    # #0047bb blue
-    "secondary": (277, 70.0, 35.5),   # #6a1b9a purple
-    "success": (148, 100.0, 25.9),    # #00843d green
-    "warning": (24, 100.0, 39.2),     # #c85000 orange
-    "danger": (350, 85.2, 42.4),      # #c8102e red
+    "primary": (240, 100.0, 50.0),    # #0000ff pure blue (was #0047bb mid)
+    "secondary": (263, 88.4, 30.4),   # #3e0992 deep violet (strip #18; deep keeps white text readable)
+    "success": (120, 100.0, 50.0),    # #00ff00 pure green (was #00843d, reads black on panel)
+    "warning": (48, 100.0, 50.0),     # #ffcc00 pure amber (was #c85000; gold #CBA230 photos brown)
+    "danger": (0, 100.0, 50.0),       # #ff0000 pure red (was #c8102e mid)
 }
 LEVELS = [round(i * 100 / 15, 2) for i in range(16)]   # the panel's 16 grey levels, in L%
 
@@ -78,7 +80,7 @@ def _eink_value(name: str, hsl: str) -> str:
     if name == "divider":
         return "0 0% 20%"
     if name == "focus":
-        return "217 100% 36.7%"
+        return "240 100% 50%"
     if fam in INK:
         if shade == "foreground":
             return "0 0% 100%"                  # white text ON an ink fill
