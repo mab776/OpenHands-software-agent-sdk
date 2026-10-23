@@ -173,6 +173,48 @@ def sort_pinned_by_use() -> None:
         print(f"[oh-ui] pinned-sort patch failed: {exc}", file=sys.stderr)
 
 
+def show_all_pinned() -> None:
+    """The pinned section preview-shows 5 conversations and hides the rest behind a "more" link
+    (Ro in root-layout-*.js: visibleConversations = slice(0,limit) unless expanded, and
+    isPreviewTruncated renders the button). Marc pins conversations to keep them ONE GLANCE away;
+    a collapsed pin defeats the purpose (2026-10-22). Two edits in that one function: limit 5 ->
+    Infinity (render every pin), and isPreviewTruncated forced false (a discovery-hidden pin would
+    otherwise keep the flag true and bring the button back; clicking it would do nothing anyway).
+    Idempotent; fail-open."""
+    try:
+        pat = re.compile(
+            r"function (?P<fn>[A-Za-z_$][\w$]*)\((?P<e>[A-Za-z_$][\w$]*),(?P<t>[A-Za-z_$][\w$]*)\)"
+            r"\{let (?P<n>[A-Za-z_$][\w$]*)=(?P=t)\.limit\?\?5,(?P<r>[A-Za-z_$][\w$]*)="
+            r"(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*?)"
+            r"return (?P=t)\.expanded\?\{visibleConversations:\[\.\.\.(?P=e)\],"
+            r"isPreviewTruncated:(?P<a>[A-Za-z_$][\w$]*),isShowingAll:!0\}"
+            r":\{visibleConversations:(?P<i>[A-Za-z_$][\w$]*),isPreviewTruncated:(?P=a),"
+            r"isShowingAll:!(?P=a)\}\}")
+        done = 0
+        for f in ASSETS.glob("*.js"):
+            src = f.read_text(encoding="utf-8")
+
+            def repl(m):
+                e, t, n, r, body, a, i = (m.group(k) for k in ("e", "t", "n", "r", "body", "a", "i"))
+                return ("function " + m.group("fn") + "(" + e + "," + t + "){let " + n + "=1/0,"
+                        + r + "=" + body
+                        + "return " + t + ".expanded?{visibleConversations:[..." + e + "],"
+                        "isPreviewTruncated:!1,isShowingAll:!0}"
+                        ":{visibleConversations:" + i + ",isPreviewTruncated:!1,isShowingAll:!0}}")
+
+            new, n_sub = pat.subn(repl, src)
+            if n_sub == 1:
+                f.write_text(new, encoding="utf-8")
+                print(f"[oh-ui] show-all-pinned: pinned section no longer collapses behind 'more' ({f.name})")
+                done += 1
+            elif n_sub > 1:
+                print(f"[oh-ui] show-all-pinned: {n_sub} matches in {f.name} - skipping", file=sys.stderr)
+        if not done:
+            print("[oh-ui] show-all-pinned: pattern not found (already patched, or the build changed)")
+    except Exception as exc:  # never block boot
+        print(f"[oh-ui] show-all-pinned patch failed: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     if not INDEX.is_file():
         print(f"[oh-ui] skip: missing {INDEX}", file=sys.stderr)
@@ -215,6 +257,7 @@ def main() -> int:
     INDEX.write_text(html, encoding="utf-8")
     keep_pause_visible()
     sort_pinned_by_use()
+    show_all_pinned()
     print(
         f"[oh-ui] injected {len(css_parts)} stylesheet(s) ({sum(len(c) for c in css_parts)} bytes, replaced={removed_css}) "
         f"+ {len(js_parts)} script(s) ({sum(len(j) for j in js_parts)} bytes JS, replaced={removed_js})"
