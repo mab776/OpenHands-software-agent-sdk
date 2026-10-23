@@ -306,32 +306,44 @@ try:
         return isinstance(e, (_AE, _ME)) and e.source == "agent" and getattr(e, "llm_response_id", None)
 
     def _causal_order(events):
-        out = list(events)
+        # "Late" is judged in the STORED order: the request end is an id from the stored
+        # list, so a message already moved past an earlier answer must not count as late
+        # again (that slid it forward every turn and the model answered it over and over).
+        pos = {e.id: n for n, e in enumerate(events)}
+        after = {}  # stored index of the last event of a reply group -> messages to put after it
+        moved = set()
         i = 0
-        while i < len(out):
-            e = out[i]
-            ctx_end = _ctx_ends.get(e.llm_response_id) if _is_reply(e) else None
-            if ctx_end is None:
+        while i < len(events):
+            e = events[i]
+            c = pos.get(_ctx_ends.get(e.llm_response_id)) if _is_reply(e) else None
+            if c is None or c >= i:
                 i += 1
                 continue
-            c = next((n for n in range(i - 1, -1, -1) if out[n].id == ctx_end), None)
-            late = out[c + 1 : i] if c is not None else []
-            if not late or not all(isinstance(x, _ME) and x.source == "user" for x in late):
+            late = events[c + 1 : i]
+            if not late or not all(isinstance(x, _ME) and x.source == "user" and x.id not in moved for x in late):
                 i += 1
                 continue
             rid = e.llm_response_id
             j = i
-            while j < len(out) and _is_reply(out[j]) and out[j].llm_response_id == rid:
+            while j < len(events) and _is_reply(events[j]) and events[j].llm_response_id == rid:
                 j += 1
-            calls = {x.tool_call_id for x in out[i:j] if isinstance(x, _AE)}
+            calls = {x.tool_call_id for x in events[i:j] if isinstance(x, _AE)}
             k = j
-            while k < len(out) and calls and isinstance(out[k], _OBE) and out[k].tool_call_id in calls:
+            while k < len(events) and calls and isinstance(events[k], _OBE) and events[k].tool_call_id in calls:
                 k += 1
-            if calls - {x.tool_call_id for x in out[j:k]}:
+            if calls - {x.tool_call_id for x in events[j:k]}:
                 i = j  # a tool call still waits for its result: keep the stored order
                 continue
-            out[c + 1 : k] = out[i:k] + late
+            after.setdefault(k - 1, []).extend(late)
+            moved.update(x.id for x in late)
             i = k
+        if not after:
+            return list(events)
+        out = []
+        for n, e in enumerate(events):
+            if e.id not in moved:
+                out.append(e)
+            out.extend(after.get(n, ()))
         return out
 
     _orig_e2m = _LCE.events_to_messages
