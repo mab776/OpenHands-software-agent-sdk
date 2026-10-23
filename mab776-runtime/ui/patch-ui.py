@@ -12,6 +12,8 @@ Add-ons (all in /oh-ui, a read-only directory bind mount):
   pause-guard.js   own ⏸ button when the app hides its pause (narrow screens, stale cached bundle)   (2026-10-20)
   eink-guard.js    runtime safety net for e-ink: snaps any unsafe fill / low-contrast text the CSS
                    missed, and logs what it fixed (window.__ohEinkGuard)             (2026-09-25)
+  update-toggle.js settings switch "Show update block": hides the sidebar version tile + update
+                   card (localStorage openhands-show-update-block, default off)      (2026-10-23)
   + GENERATED here: the HeroUI component palette for light / e-ink (see heroui_css()).
 
 Runs against WHATEVER index.html (and CSS) the image ships, so an image update cannot leave us pinned
@@ -35,7 +37,7 @@ CSS_MARK = "oh-light-theme-injected"
 JS_MARK = "oh-mode-pill-injected"           # historical id, now holds ALL scripts
 CSS_BLOCK = re.compile(r'<style id="%s">.*?</style>' % re.escape(CSS_MARK), re.DOTALL)
 JS_BLOCK = re.compile(r'<script id="%s">.*?</script>' % re.escape(JS_MARK), re.DOTALL)
-SCRIPTS = ["voice-seed.js", "pause-guard.js", "pull-refresh.js", "mode-toggle.js", "edit-last.js", "effort-menu.js", "theme-toggle.js", "eink-guard.js"]
+SCRIPTS = ["voice-seed.js", "pause-guard.js", "pull-refresh.js", "mode-toggle.js", "edit-last.js", "effort-menu.js", "theme-toggle.js", "eink-guard.js", "update-toggle.js"]
 STYLES = ["light-theme.css", "eink-theme.css"]
 
 # HeroUI (the component library behind dropdowns, list boxes, modals, selects…) has its OWN colour
