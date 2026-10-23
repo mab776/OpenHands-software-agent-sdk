@@ -173,46 +173,62 @@ def sort_pinned_by_use() -> None:
         print(f"[oh-ui] pinned-sort patch failed: {exc}", file=sys.stderr)
 
 
-def show_all_pinned() -> None:
-    """The pinned section preview-shows 5 conversations and hides the rest behind a "more" link
-    (Ro in root-layout-*.js: visibleConversations = slice(0,limit) unless expanded, and
-    isPreviewTruncated renders the button). Marc pins conversations to keep them ONE GLANCE away;
-    a collapsed pin defeats the purpose (2026-10-22). Two edits in that one function: limit 5 ->
-    Infinity (render every pin), and isPreviewTruncated forced false (a discovery-hidden pin would
-    otherwise keep the flag true and bring the button back; clicking it would do nothing anyway).
-    Idempotent; fail-open."""
+def sort_pins_before_collapse() -> None:
+    """The pinned section shows 5 pins and hides the rest behind "more" (the preview function in
+    root-layout-*.js: filtered list r -> slice(0,limit)). The visible 5 must be the 5 with the most
+    RECENT ACTIVITY, not the 5 pinned first (Marc 2026-10-23): the selector-level sort
+    (sort_pinned_by_use) can only promise the order the caller hands in, so sort INSIDE this
+    function - r right after filtering (before the slice) and the expanded list too. The body is
+    rewritten deterministically from captured parts; the head pattern accepts both the shipped
+    shape (t.limit??5, truncation flag a) and the earlier show-all-pinned shape (limit 1/0, forced
+    !1) - the latter is reverted, so the "more" button returns by design. The rewritten head
+    (r=(Lo(...)).sort(...)) no longer matches the head pattern, so re-runs are no-ops. Fail-open."""
     try:
-        pat = re.compile(
-            r"function (?P<fn>[A-Za-z_$][\w$]*)\((?P<e>[A-Za-z_$][\w$]*),(?P<t>[A-Za-z_$][\w$]*)\)"
-            r"\{let (?P<n>[A-Za-z_$][\w$]*)=(?P=t)\.limit\?\?5,(?P<r>[A-Za-z_$][\w$]*)="
-            r"(?P<body>[^{}]*(?:\{[^{}]*\}[^{}]*)*?)"
-            r"return (?P=t)\.expanded\?\{visibleConversations:\[\.\.\.(?P=e)\],"
-            r"isPreviewTruncated:(?P<a>[A-Za-z_$][\w$]*),isShowingAll:!0\}"
-            r":\{visibleConversations:(?P<i>[A-Za-z_$][\w$]*),isPreviewTruncated:(?P=a),"
-            r"isShowingAll:!(?P=a)\}\}")
+        cmp_js = ("(__qa,__qb)=>(Date.parse(__qb.updated_at??__qb.created_at??0)||0)"
+                  "-(Date.parse(__qa.updated_at??__qa.created_at??0)||0)")
+        head = re.compile(
+            r"function ([\w$]+)\(([\w$]+),([\w$]+)\)\{let ([\w$]+)=(?:1/0|[\w$]+\.limit\?\?5),"
+            r"([\w$]+)=([\w$]+)\(([^;]*?)\),([\w$]+);")
         done = 0
         for f in ASSETS.glob("*.js"):
             src = f.read_text(encoding="utf-8")
-
-            def repl(m):
-                e, t, n, r, body, a, i = (m.group(k) for k in ("e", "t", "n", "r", "body", "a", "i"))
-                return ("function " + m.group("fn") + "(" + e + "," + t + "){let " + n + "=1/0,"
-                        + r + "=" + body
-                        + "return " + t + ".expanded?{visibleConversations:[..." + e + "],"
-                        "isPreviewTruncated:!1,isShowingAll:!0}"
-                        ":{visibleConversations:" + i + ",isPreviewTruncated:!1,isShowingAll:!0}}")
-
-            new, n_sub = pat.subn(repl, src)
-            if n_sub == 1:
-                f.write_text(new, encoding="utf-8")
-                print(f"[oh-ui] show-all-pinned: pinned section no longer collapses behind 'more' ({f.name})")
-                done += 1
-            elif n_sub > 1:
-                print(f"[oh-ui] show-all-pinned: {n_sub} matches in {f.name} - skipping", file=sys.stderr)
+            heads = list(head.finditer(src))
+            if len(heads) != 1:
+                continue
+            m = heads[0]
+            fn, e, t, n, r, lo, loargs, i = m.groups()
+            # brace-match the function body: first "{" after "function name(args)"
+            start = src.index("{", m.start())
+            depth, j = 0, start
+            while j < len(src):
+                if src[j] == "{":
+                    depth += 1
+                elif src[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            body = src[start:j + 1]
+            me = re.search(r"else\{([^{}]*)\}", body)
+            ma = re.search(r"let ([\w$]+)=[\w$]+\.length<", body)
+            if not me or not ma:
+                print(f"[oh-ui] sort-before-collapse: unexpected body shape in {f.name} - skipping", file=sys.stderr)
+                continue
+            a = ma.group(1)
+            new_body = (
+                "{let " + n + "=" + t + ".limit??5," + r + "=(" + lo + "(" + loargs + ")).sort(" + cmp_js
+                + ")," + i + ";if(" + r + ".length<=" + n + ")" + i + "=" + r + ";else{" + me.group(1) + "}"
+                + "let " + a + "=" + i + ".length<" + e + ".length;"
+                + "return " + t + ".expanded?{visibleConversations:[..." + e + "].sort(" + cmp_js
+                + "),isPreviewTruncated:" + a + ",isShowingAll:!0}"
+                + ":{visibleConversations:" + i + ",isPreviewTruncated:" + a + ",isShowingAll:!" + a + "}}")
+            f.write_text(src[:start] + new_body + src[j + 1:], encoding="utf-8")
+            print(f"[oh-ui] sort-before-collapse: visible pins are the {n} most recently active ({f.name})")
+            done += 1
         if not done:
-            print("[oh-ui] show-all-pinned: pattern not found (already patched, or the build changed)")
+            print("[oh-ui] sort-before-collapse: pattern not found (already patched, or the build changed)")
     except Exception as exc:  # never block boot
-        print(f"[oh-ui] show-all-pinned patch failed: {exc}", file=sys.stderr)
+        print(f"[oh-ui] sort-before-collapse patch failed: {exc}", file=sys.stderr)
 
 
 def main() -> int:
@@ -257,7 +273,7 @@ def main() -> int:
     INDEX.write_text(html, encoding="utf-8")
     keep_pause_visible()
     sort_pinned_by_use()
-    show_all_pinned()
+    sort_pins_before_collapse()
     print(
         f"[oh-ui] injected {len(css_parts)} stylesheet(s) ({sum(len(c) for c in css_parts)} bytes, replaced={removed_css}) "
         f"+ {len(js_parts)} script(s) ({sum(len(j) for j in js_parts)} bytes JS, replaced={removed_js})"
