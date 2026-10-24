@@ -387,19 +387,37 @@ except Exception:
     _log.exception("oh_host_patches: patch 7 failed to apply")
 
 
-# 8. (2026-10-24) Our Qwen gets its own earlier reasoning back. The SDK sends an assistant turn's reasoning_content
-#    only for the models in SEND_REASONING_CONTENT_MODELS; openai/qwen3.8-flash-next is not one, so every earlier
-#    turn reached Strata as an empty <think></think> - while Qwen 3.8's template (preserve_thinking, on by default)
-#    expects them. In long tool runs the model then re-derives "Marc's question" each step and sometimes invents one
-#    (conversation 7553abe9, 10-23 22:05-22:22: mic / container / Dutch questions never asked). Exact replays of the
-#    22:05:52 request (94,609 tokens, = the engine's own count): 6/25 openings invented a user question (8/24 with
-#    MTP drafts off); the same request with the reasoning sent back: 0/24. Cost: a bigger prompt (that one 94.6k ->
-#    122k tokens), so condensation comes sooner. Substring match = both ids (qwen3.8-flash-next and -a).
+# 8. (2026-10-24) The model gets its own earlier reasoning back - a per-profile switch, ON for our coders.
+#    The SDK sends an assistant turn's reasoning_content only for the models in SEND_REASONING_CONTENT_MODELS; our
+#    ids (openai/qwen3.8-flash-next, openai/deepseek-v4-flash) are not matched, so every earlier turn reached the engine
+#    as an empty <think></think> - while Qwen 3.8's template (preserve_thinking, on by default) expects them. In long
+#    tool runs the model then re-derives "Marc's question" each step and sometimes invents one (conversation 7553abe9,
+#    10-23 22:05-22:22: mic / container / Dutch questions never asked). Exact replays of the 22:05:52 request
+#    (94,609 tokens, = the engine's own count): 6/25 openings invented a user question (8/24 with MTP drafts off);
+#    the same request with the reasoning sent back: 0/24. Cost: bigger prompts (94.6k -> 122k), condensation sooner.
+#    The switch: Settings -> LLM -> a profile's ... -> Edit -> All -> "Capability Overrides":
+#    {"send_reasoning_content": true|false}. An explicit value wins; without one our local coders default to ON
+#    (substring match on the model id, so the -a / V4.1 ids too) - which also covers every existing conversation,
+#    since each keeps its own copy of the LLM config.
+_REASONING_BACK_DEFAULT = ("qwen3.8-flash-next", "deepseek-v4-flash", "deepseek-v4.1-flash")
 try:
+    import dataclasses as _dc
+    from openhands.sdk.llm import llm as _llm_mod8
     from openhands.sdk.llm.utils import model_features as _mf
 
-    if "qwen3.8-flash-next" not in _mf.SEND_REASONING_CONTENT_MODELS:
-        _mf.SEND_REASONING_CONTENT_MODELS.append("qwen3.8-flash-next")
-    _log.info("oh_host_patches: Qwen 3.8 Flash Next gets its earlier reasoning back (send_reasoning_content)")
+    _orig_get_features = _mf.get_features
+
+    def _get_features(model, *a, **k):
+        feats = _orig_get_features(model, *a, **k)
+        ov = k.get("overrides")
+        want = ov.get("send_reasoning_content") if ov else None
+        if not isinstance(want, bool):
+            want = feats.send_reasoning_content or _mf.model_matches(model, _REASONING_BACK_DEFAULT)
+        return feats if want == feats.send_reasoning_content else _dc.replace(feats, send_reasoning_content=want)
+
+    _mf.get_features = _get_features
+    _llm_mod8.get_features = _get_features
+    _log.info("oh_host_patches: earlier reasoning sent back (capability_overrides.send_reasoning_content; "
+              "default on for %s)", ", ".join(_REASONING_BACK_DEFAULT))
 except Exception:
     _log.exception("oh_host_patches: patch 8 failed to apply")
