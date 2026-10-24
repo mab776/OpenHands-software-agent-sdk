@@ -385,3 +385,21 @@ try:
     _log.info("oh_host_patches: the condenser follows a profile switch")
 except Exception:
     _log.exception("oh_host_patches: patch 7 failed to apply")
+
+
+# 8. (2026-10-24) Our Qwen gets its own earlier reasoning back. The SDK sends an assistant turn's reasoning_content
+#    only for the models in SEND_REASONING_CONTENT_MODELS; openai/qwen3.8-flash-next is not one, so every earlier
+#    turn reached Strata as an empty <think></think> - while Qwen 3.8's template (preserve_thinking, on by default)
+#    expects them. In long tool runs the model then re-derives "Marc's question" each step and sometimes invents one
+#    (conversation 7553abe9, 10-23 22:05-22:22: mic / container / Dutch questions never asked). Exact replays of the
+#    22:05:52 request (94,609 tokens, = the engine's own count): 6/25 openings invented a user question (8/24 with
+#    MTP drafts off); the same request with the reasoning sent back: 0/24. Cost: a bigger prompt (that one 94.6k ->
+#    122k tokens), so condensation comes sooner. Substring match = both ids (qwen3.8-flash-next and -a).
+try:
+    from openhands.sdk.llm.utils import model_features as _mf
+
+    if "qwen3.8-flash-next" not in _mf.SEND_REASONING_CONTENT_MODELS:
+        _mf.SEND_REASONING_CONTENT_MODELS.append("qwen3.8-flash-next")
+    _log.info("oh_host_patches: Qwen 3.8 Flash Next gets its earlier reasoning back (send_reasoning_content)")
+except Exception:
+    _log.exception("oh_host_patches: patch 8 failed to apply")
