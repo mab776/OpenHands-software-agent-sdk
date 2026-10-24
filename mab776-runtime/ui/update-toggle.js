@@ -47,6 +47,9 @@
     const set = (on) => {
       input.checked = on;
       track.style.backgroundColor = on ? "var(--oh-accent, currentColor)" : "transparent";
+      // e-ink: --oh-accent is black and the thumb's bg-contrast is also black,
+      // so without this the ON state reads as a solid pill with no thumb.
+      thumb.style.backgroundColor = on ? "#fff" : "";
       thumb.style.transform = on ? "translateX(21px)" : "translateX(2px)";
     };
     const text = document.createElement("div");
