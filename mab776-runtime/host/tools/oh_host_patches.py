@@ -421,3 +421,30 @@ try:
               "default on for %s)", ", ".join(_REASONING_BACK_DEFAULT))
 except Exception:
     _log.exception("oh_host_patches: patch 8 failed to apply")
+
+
+# 9. (2026-10-24) Condense on TOKENS with headroom, not only at 240 events. The summarizing condenser fires when the
+#    view passes max_size (240 events) or when its token count passes min(condenser.max_tokens, the model's window).
+#    We never set max_tokens, so the token trigger sat at 100 % of the 262,144 window - and the SDK's count runs ~7 %
+#    under Strata's (LLM SysAdmin fb7b2c18: 198.5k counted vs 213k read) and leaves no room for the answer (up to 32k).
+#    Patch 8 made each turn bigger (its reasoning comes along: ~13 % of that conversation), so long tool-heavy chats
+#    reached ~213k at 119 events and would overflow the engine before either trigger fired. Here: when the condenser
+#    has no max_tokens of its own, the cap is CONDENSE_AT x the model's window (0.65 -> ~170k on Qwen); the condenser
+#    then summarises down to half of it. An explicit max_tokens (Settings -> Condenser) still wins.
+CONDENSE_AT = 0.65
+try:
+    from openhands.sdk.context.condenser.llm_summarizing_condenser import LLMSummarizingCondenser as _LSC9
+
+    _orig_eff_max = _LSC9._effective_max_tokens
+
+    def _effective_max_tokens(self, agent_llm=None):
+        cap = _orig_eff_max(self, agent_llm)
+        if self.max_tokens is None and agent_llm is not None and cap:
+            return int(cap * CONDENSE_AT)
+        return cap
+
+    _LSC9._effective_max_tokens = _effective_max_tokens
+    _log.info("oh_host_patches: the condenser also fires at %d %% of the model's window (no max_tokens set)",
+              int(CONDENSE_AT * 100))
+except Exception:
+    _log.exception("oh_host_patches: patch 9 failed to apply")
