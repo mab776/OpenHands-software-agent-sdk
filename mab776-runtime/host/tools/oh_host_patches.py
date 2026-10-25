@@ -429,9 +429,9 @@ except Exception:
 #    under Strata's (LLM SysAdmin fb7b2c18: 198.5k counted vs 213k read) and leaves no room for the answer (up to 32k).
 #    Patch 8 made each turn bigger (its reasoning comes along: ~13 % of that conversation), so long tool-heavy chats
 #    reached ~213k at 119 events and would overflow the engine before either trigger fired. Here: when the condenser
-#    has no max_tokens of its own, the cap is CONDENSE_AT x the model's window (0.65 -> ~170k on Qwen); the condenser
+#    has no max_tokens of its own, the cap is CONDENSE_AT x the model's window (0.80 -> ~210k on Qwen; Marc 10-24, was 0.65); the condenser
 #    then summarises down to half of it. An explicit max_tokens (Settings -> Condenser) still wins.
-CONDENSE_AT = 0.65
+CONDENSE_AT = 0.80
 try:
     from openhands.sdk.context.condenser.llm_summarizing_condenser import LLMSummarizingCondenser as _LSC9
 
